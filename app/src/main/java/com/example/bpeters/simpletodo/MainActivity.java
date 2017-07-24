@@ -1,7 +1,9 @@
 package com.example.bpeters.simpletodo;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
+import android.util.Log;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
@@ -38,6 +40,17 @@ public class MainActivity extends AppCompatActivity {
                 return true;
             }
         });
+
+        lvitems.setOnItemClickListener(new AdapterView.OnItemClickListener(){
+            @Override
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id){
+
+                Log.i("Clicked item:", (String) parent.getItemAtPosition(position));
+                String clickedItemStr = (String) parent.getItemAtPosition(position);
+
+                launchEditActivity(clickedItemStr, String.valueOf(position));
+            }
+        });
     }
 
     public void populateArrayItems(){
@@ -63,6 +76,13 @@ public class MainActivity extends AppCompatActivity {
         } catch (IOException e){
 
         }
+    }
+
+    public void launchEditActivity(String val, String pos) {
+        Intent i = new Intent(MainActivity.this, EditItemActivity.class);
+        i.putExtra("value", val);
+        i.putExtra("position", pos);
+        startActivity(i);
     }
 
     public void onAddItem(View view) {
