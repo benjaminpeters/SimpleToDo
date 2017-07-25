@@ -22,6 +22,8 @@ public class MainActivity extends AppCompatActivity {
     ArrayAdapter<String> aToDoAdapter;
     ListView lvitems;
     EditText etEditText;
+    // REQUEST_CODE can be any value we like, used to determine the result type later
+    private final int REQUEST_CODE = 20;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -82,12 +84,23 @@ public class MainActivity extends AppCompatActivity {
         Intent i = new Intent(MainActivity.this, EditItemActivity.class);
         i.putExtra("value", val);
         i.putExtra("position", pos);
-        startActivity(i);
+        startActivityForResult(i, REQUEST_CODE);
     }
 
     public void onAddItem(View view) {
         aToDoAdapter.add(etEditText.getText().toString());
         etEditText.setText("");
         writeItems();
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (resultCode == RESULT_OK && requestCode == REQUEST_CODE) {
+            String name = data.getExtras().getString("value");
+            int pos = Integer.parseInt(data.getExtras().getString("pos"));
+            todoItems.set(pos, name);
+            aToDoAdapter.notifyDataSetChanged();
+            writeItems();
+        }
     }
 }
