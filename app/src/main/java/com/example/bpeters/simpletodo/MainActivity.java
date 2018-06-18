@@ -4,6 +4,7 @@ import android.arch.persistence.room.Room;
 import android.content.Intent;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
+import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.AdapterView;
@@ -13,6 +14,7 @@ import android.widget.ListView;
 
 import com.example.bpeters.simpletodo.database.ToDoDatabase;
 import com.example.bpeters.simpletodo.database.entities.ToDoItem;
+import com.example.bpeters.simpletodo.utilities.ThreadManager;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -38,7 +40,6 @@ public class MainActivity extends AppCompatActivity {
 
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN);
 
-
         toDoDatabase = Room.databaseBuilder(getApplicationContext(),
                 ToDoDatabase.class, DATABASE_NAME)
                 .fallbackToDestructiveMigration()
@@ -49,15 +50,32 @@ public class MainActivity extends AppCompatActivity {
         lvitems = (ListView) findViewById(R.id.lvitems);
         lvitems.setAdapter(aToDoAdapter);
         etEditText = (EditText) findViewById(R.id.eteditText);
+
         lvitems.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener(){
             @Override
-            public boolean onItemLongClick(AdapterView<?> parent, View view, int position, long id){
+            public boolean onItemLongClick(AdapterView<?> parent, View view, final int position, long id){
 
-                ToDoItem clickedItem = (ToDoItem) parent.getItemAtPosition(position);
-                toDoDatabase.homePageDao().deleteToDoItem(clickedItem);
+                final ToDoItem clickedItem = (ToDoItem) parent.getItemAtPosition(position);
 
-                todoItems.remove(position);
-                aToDoAdapter.notifyDataSetChanged();
+                // update db on background thread
+                ThreadManager.runOnBackgroundThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            toDoDatabase.homePageDao().deleteToDoItem(clickedItem);
+                        }
+                    }
+                );
+
+                // update the UI on main thread
+                ThreadManager.runOnUiThread( new Runnable() {
+                    @Override
+                    public void run() {
+                        todoItems.remove(position);
+                        aToDoAdapter.notifyDataSetChanged();
+                        }
+                    }
+                );
+
                 return true;
             }
         });
@@ -73,7 +91,15 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void populateArrayItems(){
-        todoItems = toDoDatabase.homePageDao().getAll();
+        // pull data from db on background thread
+//        ThreadManager.runOnBackgroundThread(new Runnable() {
+//            @Override
+//            public void run() {
+                todoItems = toDoDatabase.homePageDao().getAll();
+//                }
+//            }
+//        );
+
         aToDoAdapter = new ArrayAdapter<ToDoItem>(this, android.R.layout.simple_list_item_1,
                 todoItems);
     }
@@ -87,33 +113,61 @@ public class MainActivity extends AppCompatActivity {
 
     public void onAddItem(View view) {
         final String todoText = etEditText.getText().toString();
-        final String pos = Integer.toString( todoItems.size() + 2 );
-        final ToDoItem item = new ToDoItem();
-        item.setToDoItemID( pos);
-        item.setToDoItem(todoText);
+        if (!todoText.equals("")) {
+//            final String pos = Integer.toString(todoItems.size() + 2);
+            final ToDoItem item = new ToDoItem();
+//            item.setToDoItemID(pos);
+            item.setToDoItem(todoText);
 
-        // update the UI on main thread
-        aToDoAdapter.add(item);
-        etEditText.setText("");
+            Log.d("mainactivity add item", todoItems.toString());
 
-        // update db on background thread
-        new Thread(new Runnable() {
-            public void run() {
-                toDoDatabase.homePageDao().insertToDoItem (item);
-            }
-        }).start();
+            // update the UI on main thread
+            ThreadManager.runOnUiThread(
+                    new Runnable() {
+                        @Override
+                        public void run() {
+                            aToDoAdapter.add(item);
+                            etEditText.setText("");
+                        }
+                    }
+            );
 
+            // update db on background thread
+            ThreadManager.runOnBackgroundThread(
+                    new Runnable() {
+                        @Override
+                        public void run() {
+                            toDoDatabase.homePageDao().insertToDoItem(item);
+                        }
+                    }
+            );
+        }
     }
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         if (resultCode == RESULT_OK && requestCode == REQUEST_CODE) {
-            ToDoItem name;
-            name = (ToDoItem)data.getSerializableExtra("value");
+            final ToDoItem item;
+            item = (ToDoItem)data.getSerializableExtra("value");
             int pos = Integer.parseInt(data.getExtras().getString("pos"));
-            todoItems.set(pos, name);
-            aToDoAdapter.notifyDataSetChanged();
-            toDoDatabase.homePageDao () . updateToDoItem (name);
+            todoItems.set(pos, item);
+
+            // update the UI on main thread
+            ThreadManager.runOnUiThread( new Runnable() {
+                @Override
+                public void run() {
+                    aToDoAdapter.notifyDataSetChanged();
+                    }
+                }
+            );
+            // update db on background thread
+            ThreadManager.runOnBackgroundThread(new Runnable() {
+                @Override
+                public void run() {
+                    toDoDatabase.homePageDao().updateToDoItem (item);
+                    }
+                }
+            );
         }
     }
 }
